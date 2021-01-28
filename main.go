@@ -7,7 +7,7 @@ import (
 
 func main() {
 	d := doh.New()
-	doh.Question(&d, "A", "www.example.com")
+	doh.SetQuestion(&d, "A", "www.example.com")
 	doh.Print(&d)
 	fmt.Println(doh.Encode(&d))
 }

@@ -1,21 +1,44 @@
 package doh
 
 import (
+	"bytes"
 	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"strings"
 )
 
-type doh struct {
-	rr         map[string]byte
+var RR map[string]byte
+var Query []byte
+
+type Header struct {
+	id      int16
+	flags   uint16
+	qdcount int16
+	ancount int16
+	nscount int16
+	arcount int16
+}
+
+type Question struct {
+}
+
+type DoH struct {
 	header     []byte
 	question   []byte
 	querytype  []byte
 	queryclass []byte
-	query      []byte
 }
 
-func New() doh {
+func init() {
+	RR = map[string]byte{"A": 1, "NS": 2, "MX": 24, "SOA": 6, "TXT": 16}
+}
+
+func New() DoH {
+	header := Header{0, 0x0100, 1, 0, 0, 0}
+	var buffer bytes.Buffer
+	binary.Write(&buffer, binary.BigEndian, header)
+	fmt.Println(buffer.Bytes())
 	var h []byte
 	h = append(h, 0, 0)
 	h = append(h, 1, 0)
@@ -23,12 +46,12 @@ func New() doh {
 	h = append(h, 0, 0)
 	h = append(h, 0, 0)
 	h = append(h, 0, 0)
-	d := doh{map[string]byte{"A": 1, "NS": 2, "MX": 24, "SOA": 6, "TXT": 16}, h, []byte{}, []byte{0, 1}, []byte{0, 1}, []byte{}}
+	d := DoH{h, []byte{}, []byte{0, 1}, []byte{0, 1}}
 	return d
 }
 
-func Question(d *doh, rr string, domain string) {
-	d.querytype[1] = d.rr[rr]
+func SetQuestion(d *DoH, rr string, domain string) {
+	d.querytype[1] = RR[rr]
 	d.question = d.question[:0]
 	parts := strings.Split(domain, ".")
 	for _, part := range parts {
@@ -38,20 +61,20 @@ func Question(d *doh, rr string, domain string) {
 		}
 	}
 	d.question = append(d.question, 0)
-	d.query = append(d.header, d.question...)
-	d.query = append(d.query, d.querytype...)
-	d.query = append(d.query, d.queryclass...)
+	Query = append(d.header, d.question...)
+	Query = append(Query, d.querytype...)
+	Query = append(Query, d.queryclass...)
 }
 
-func Print(d *doh) {
-	for i := 0; i < len(d.query); i++ {
-		fmt.Printf("%02x ", d.query[i])
+func Print(d *DoH) {
+	for i := 0; i < len(Query); i++ {
+		fmt.Printf("%02x ", Query[i])
 	}
 	fmt.Println()
 }
 
-func Encode(d *doh) string {
-	b := make([]byte, base64.StdEncoding.EncodedLen(len(d.query)))
-	base64.StdEncoding.Encode(b, d.query)
+func Encode(d *DoH) string {
+	b := make([]byte, base64.StdEncoding.EncodedLen(len(Query)))
+	base64.StdEncoding.Encode(b, Query)
 	return string(b)
 }
