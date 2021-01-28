@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-var RR map[string]byte
+var RR map[string]int16
 var Query []byte
 
 type Header struct {
@@ -21,49 +21,47 @@ type Header struct {
 }
 
 type Question struct {
+	name       []byte
+	querytype  int16
+	queryclass int16
 }
 
 type DoH struct {
-	header     []byte
-	question   []byte
-	querytype  []byte
-	queryclass []byte
+	header   Header
+	question Question
 }
 
 func init() {
-	RR = map[string]byte{"A": 1, "NS": 2, "MX": 24, "SOA": 6, "TXT": 16}
+	RR = map[string]int16{"A": 1, "NS": 2, "MX": 24, "SOA": 6, "TXT": 16}
 }
 
 func New() DoH {
 	header := Header{0, 0x0100, 1, 0, 0, 0}
-	var buffer bytes.Buffer
-	binary.Write(&buffer, binary.BigEndian, header)
-	fmt.Println(buffer.Bytes())
-	var h []byte
-	h = append(h, 0, 0)
-	h = append(h, 1, 0)
-	h = append(h, 0, 1)
-	h = append(h, 0, 0)
-	h = append(h, 0, 0)
-	h = append(h, 0, 0)
-	d := DoH{h, []byte{}, []byte{0, 1}, []byte{0, 1}}
+	question := Question{[]byte{}, 1, 1}
+	d := DoH{header, question}
 	return d
 }
 
 func SetQuestion(d *DoH, rr string, domain string) {
-	d.querytype[1] = RR[rr]
-	d.question = d.question[:0]
+	d.question.querytype = RR[rr]
+	d.question.name = d.question.name[:0]
 	parts := strings.Split(domain, ".")
 	for _, part := range parts {
-		d.question = append(d.question, byte(len(part)))
+		d.question.name = append(d.question.name, byte(len(part)))
 		for i := 0; i < len(part); i++ {
-			d.question = append(d.question, part[i])
+			d.question.name = append(d.question.name, part[i])
 		}
 	}
-	d.question = append(d.question, 0)
-	Query = append(d.header, d.question...)
-	Query = append(Query, d.querytype...)
-	Query = append(Query, d.queryclass...)
+	d.question.name = append(d.question.name, 0)
+
+	var buffer bytes.Buffer
+	err := binary.Write(&buffer, binary.BigEndian, d.header)
+	if err != nil {
+		fmt.Println(err)
+	}
+	Query = buffer.Bytes()
+	Query = append(Query, d.question.name...)
+	Query = append(Query, 0, byte(d.question.querytype), 0, byte(d.question.queryclass))
 }
 
 func Print(d *DoH) {
