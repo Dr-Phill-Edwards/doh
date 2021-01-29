@@ -41,7 +41,7 @@ type DoH struct {
 }
 
 func init() {
-	RR = map[string]uint16{"A": 1, "NS": 2, "MX": 24, "SOA": 6, "TXT": 16}
+	RR = map[string]uint16{"A": 1, "NS": 2, "MX": 15, "SOA": 6, "TXT": 16}
 }
 
 func New() DoH {
@@ -100,7 +100,6 @@ func DecodeDomain(domain []byte, query string) (string, int) {
 }
 
 func FromBytes(response []byte) {
-	fmt.Println(response)
 	var d DoH
 	d.header.id = binary.BigEndian.Uint16(response)
 	d.header.flags = binary.BigEndian.Uint16(response[2:])
@@ -137,7 +136,9 @@ func DecodeAnswer(answer []byte, domain string) int {
 			reply += " " + key + " "
 		}
 	}
-	index += 4
+	index += 2
+	len := int(binary.BigEndian.Uint16(answer[index:]))
+	index += 2
 	if querytype == 1 {
 		reply += strconv.Itoa(int(answer[index])) + "."
 		reply += strconv.Itoa(int(answer[index+1])) + "."
@@ -145,6 +146,15 @@ func DecodeAnswer(answer []byte, domain string) int {
 		reply += strconv.Itoa(int(answer[index+3]))
 		index += 4
 	} else if querytype == 2 {
+		value, n := DecodeDomain(answer[index:], domain)
+		reply += value
+		index += n
+	} else if querytype == 16 {
+		reply += string(answer[index : index+len])
+		index += len
+	} else if querytype == 15 {
+		reply += strconv.Itoa(int(binary.BigEndian.Uint16(answer[index:]))) + " "
+		index += 2
 		value, n := DecodeDomain(answer[index:], domain)
 		reply += value
 		index += n
