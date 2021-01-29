@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
 )
 
 func Request(d *doh.DoH) {
@@ -18,12 +19,15 @@ func Request(d *doh.DoH) {
 	}
 	defer response.Body.Close()
 	body, _ := ioutil.ReadAll(response.Body)
-	reply := doh.FromBytes(body)
-	fmt.Println(reply)
+	doh.FromBytes(body)
 }
 
 func main() {
+	if len(os.Args) != 3 || doh.RR[os.Args[1]] == 0 {
+		fmt.Println("Usage: " + os.Args[0] + " A|NS|MX|SOA|TXT url")
+		os.Exit(1)
+	}
 	d := doh.New()
-	doh.SetQuestion(&d, "A", "www.example.com")
+	doh.SetQuestion(&d, os.Args[1], os.Args[2])
 	Request(&d)
 }

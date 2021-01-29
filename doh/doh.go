@@ -76,7 +76,31 @@ func ToBytes(d *DoH) []byte {
 	return query
 }
 
-func FromBytes(response []byte) string {
+func DecodeDomain(domain []byte, query string) (string, int) {
+	name := ""
+	index := 0
+	for {
+		if domain[index] == 0xC0 {
+			name += query
+			index += 2
+			break
+		}
+		len := domain[index]
+		index++
+		if len == 0 {
+			break
+		}
+		for ; len > 0; len-- {
+			name += string(domain[index])
+			index++
+		}
+		name += "."
+	}
+	return name, index
+}
+
+func FromBytes(response []byte) {
+	fmt.Println(response)
 	var d DoH
 	d.header.id = binary.BigEndian.Uint16(response)
 	d.header.flags = binary.BigEndian.Uint16(response[2:])
@@ -86,45 +110,47 @@ func FromBytes(response []byte) string {
 	d.header.arcount = binary.BigEndian.Uint16(response[10:])
 
 	question := response[12:]
-	reply := ""
-	index := 0
-	for {
-		len := question[index]
-		index++
-		if len == 0 {
-			break
-		}
-		for ; len > 0; len-- {
-			reply += string(question[index])
-			index++
-		}
-		reply += "."
-	}
+	domain, index := DecodeDomain(question, "")
 	d.question.name = append(d.question.name, question[:index]...)
 	d.question.querytype = binary.BigEndian.Uint16(question[index:])
 	d.question.queryclass = binary.BigEndian.Uint16(question[index+2:])
 
 	answer := question[index+4:]
-	fmt.Println(answer)
-	if answer[0] == 0xC0 {
-		index = 2
+	for n := 0; n < int(d.header.ancount); n++ {
+		index = DecodeAnswer(answer, domain)
+		answer = answer[index:]
 	}
-	reply += " " + strconv.Itoa(int(binary.BigEndian.Uint16(question[index+7:])))
-	if answer[index+3] == 1 {
+}
+
+func DecodeAnswer(answer []byte, domain string) int {
+	reply, index := DecodeDomain(answer, domain)
+	querytype := binary.BigEndian.Uint16(answer[index:])
+	index += 2
+	queryclass := int(binary.BigEndian.Uint16(answer[index:]))
+	index += 4
+	reply += " " + strconv.Itoa(int(binary.BigEndian.Uint16(answer[index:])))
+	if queryclass == 1 {
 		reply += " IN"
 	}
 	for key, code := range RR {
-		if byte(code) == answer[index+1] {
+		if code == querytype {
 			reply += " " + key + " "
 		}
 	}
-	if answer[index+1] == 1 {
-		reply += strconv.Itoa(int(answer[index+10])) + "."
-		reply += strconv.Itoa(int(answer[index+11])) + "."
-		reply += strconv.Itoa(int(answer[index+12])) + "."
-		reply += strconv.Itoa(int(answer[index+13]))
+	index += 4
+	if querytype == 1 {
+		reply += strconv.Itoa(int(answer[index])) + "."
+		reply += strconv.Itoa(int(answer[index+1])) + "."
+		reply += strconv.Itoa(int(answer[index+2])) + "."
+		reply += strconv.Itoa(int(answer[index+3]))
+		index += 4
+	} else if querytype == 2 {
+		value, n := DecodeDomain(answer[index:], domain)
+		reply += value
+		index += n
 	}
-	return reply
+	fmt.Println(reply)
+	return index
 }
 
 func Print(d *DoH) {
@@ -139,5 +165,5 @@ func Encode(d *DoH) string {
 	query := ToBytes(d)
 	b := make([]byte, base64.StdEncoding.EncodedLen(len(query)))
 	base64.StdEncoding.Encode(b, query)
-	return string(b)
+	return strings.TrimRight(string(b), "=")
 }
