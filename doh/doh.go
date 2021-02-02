@@ -26,18 +26,9 @@ type Question struct {
 	queryclass uint16
 }
 
-type Answer struct {
-	name       []byte
-	querytype  uint16
-	queryclass uint16
-	ttl        uint16
-	rdata      []byte
-}
-
 type DoH struct {
 	header   Header
 	question Question
-	answer   Answer
 }
 
 func init() {
@@ -47,7 +38,7 @@ func init() {
 func New() DoH {
 	header := Header{0, 0x0100, 1, 0, 0, 0}
 	question := Question{[]byte{}, 1, 1}
-	d := DoH{header, question, Answer{}}
+	d := DoH{header, question}
 	return d
 }
 
